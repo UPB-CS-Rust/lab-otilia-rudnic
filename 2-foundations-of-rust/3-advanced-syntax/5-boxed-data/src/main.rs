@@ -16,6 +16,8 @@ enum Expr {
     Const(i64),
     Add(Box<Expr>, Box<Expr>),
     Sub(Box<Expr>, Box<Expr>),
+    Mul(Box<Expr>, Box<Expr>),
+    Div(Box<Expr>, Box<Expr>),
     Var,
     Summation(Vec<Expr>),
 }
@@ -36,39 +38,61 @@ fn sub(x: Expr, y: Expr) -> Expr {
 }
 
 fn mul(x: Expr, y: Expr) -> Expr {
-    todo!()
+    Expr::Mul(Box::new(x), Box::new(y))
 }
 
 fn div(x: Expr, y: Expr) -> Expr {
-    todo!()
+    Expr::Div(Box::new(x), Box::new(y))
 }
 
 // ...
 
-fn eval(expr: &Expr, var: i64) -> i64 {
+fn eval(expr: &Expr, var: i64) -> Option<i64> {
     // this should return an Option<i64>
     use Expr::*;
     match expr {
-        Const(k) => *k,
-        Var => var,
-        Add(lhs, rhs) => eval(lhs, var) + eval(rhs, var),
-        Sub(lhs, rhs) => eval(lhs, var) - eval(rhs, var),
-
+        Const(k) => Some(*k),
+        Var => Some(var),
+        Add(lhs, rhs) => {
+            let left = eval(lhs, var)?;
+            let right = eval(rhs, var)?;
+            Some(left + right)
+        },
+        Sub(lhs, rhs) => {
+            let left = eval(lhs, var)?;
+            let right = eval(rhs, var)?;
+            Some(left - right)
+        },
+        Mul(lhs, rhs) => {
+            let left = eval(lhs, var)?;
+            let right = eval(rhs, var)?;
+            Some(left * right)
+        },
+        Div(lhs, rhs) => {
+            let denominator = eval(rhs, var)?;
+            if denominator == 0 {
+                None
+            } else {
+                let numerator = eval(lhs, var)?;
+                Some(numerator / denominator)
+            }
+        },
         Summation(exprs) => {
             let mut acc = 0;
             for e in exprs {
-                acc += eval(e, var);
+                acc += eval(e, var)?;
             }
-            acc
+            Some(acc)
         }
     }
+    
 }
 
 fn main() {
     let test = |expr| {
         let value = rand::random::<i8>() as i64;
         println!(
-            "{:?} with Var = {} ==> {}",
+            "{:?} with Var = {:?} ==> {:?}",
             &expr,
             value,
             eval(&expr, value)
@@ -90,14 +114,16 @@ mod test {
     #[test]
     fn test_cases() {
         let x = 42;
-        assert_eq!(eval(&Const(5), x), 5);
-        assert_eq!(eval(&Var, x), 42);
-        assert_eq!(eval(&sub(Var, Const(5)), x), 37);
-        assert_eq!(eval(&sub(Var, Var), x), 0);
-        assert_eq!(eval(&add(sub(Var, Const(5)), Const(5)), x), 42);
-        assert_eq!(eval(&Summation(vec![Var, Const(1)]), x), 43);
+        assert_eq!(eval(&Const(5), x), Some(5));
+        assert_eq!(eval(&Var, x), Some(42));
+        assert_eq!(eval(&sub(Var, Const(5)), x), Some(37));
+        assert_eq!(eval(&sub(Var, Var), x), Some(0));
+        assert_eq!(eval(&add(sub(Var, Const(5)), Const(5)), x), Some(42));
+        assert_eq!(eval(&Summation(vec![Var, Const(1)]), x), Some(43));
+        assert_eq!(eval(&div(Const(5), Const(0)), x), None);
     }
 }
+
 
 // If you have time left and want to code more Rust: you can extend this exercise endlessly; one idea would be adding a Sigma(from,to,expr)
 // constructor to Expr which computes the equivalent of (in LaTeX notation) \sum_{Var = from}^{to} expr; i.e. Sigma(Const(1), Const(5), Var) should be
